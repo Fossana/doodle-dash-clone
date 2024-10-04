@@ -160,22 +160,29 @@
 
         // Modified function to spawn crystals in more challenging locations
         function spawnCrystal() {
-            const x = Math.random() < 0.5 ? Math.random() * (canvas.width / 2) : Math.random() * (canvas.width / 2) + canvas.width / 2; // Left or right side
-            const y = canvas.height + 30;
-
-            // Ensure no overlap with obstacles
-            for (let obstacle of obstacles) {
-                const dx = x - obstacle.x;
-                const dy = y - obstacle.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                if (distance < MIN_OBSTACLE_CRYSTAL_DISTANCE) return;
+            // Find the highest crystal currently on the screen
+            const currentHighestCrystal = crystals.reduce((highest, crystal) => 
+                crystal.y > highest ? crystal.y : highest, -Infinity);
+        
+            // Only spawn if there's enough vertical space from the last crystal
+            if (currentHighestCrystal < canvas.height - MIN_CRYSTAL_Y_SPACING) {
+                const x = Math.random() < 0.5 ? Math.random() * (canvas.width / 2) : Math.random() * (canvas.width / 2) + canvas.width / 2; // Left or right side
+                const y = canvas.height + 30;
+        
+                // Ensure no overlap with obstacles
+                for (let obstacle of obstacles) {
+                    const dx = x - obstacle.x;
+                    const dy = y - obstacle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < MIN_OBSTACLE_CRYSTAL_DISTANCE) return;
+                }
+        
+                // Add the crystal if spacing conditions are met
+                const crystal = new GameObject(x, y, 20, 20, '#00ff00');
+                crystal.collected = false;
+                crystals.push(crystal);
             }
-
-            const crystal = new GameObject(x, y, 20, 20, '#00ff00');
-            crystal.collected = false;
-            crystals.push(crystal);
         }
-
         function drawGrid() {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1;
@@ -200,7 +207,7 @@
         function handleTilt(event) {
             if (gameStarted && !gameOver) {
                 tiltAngle = event.gamma;
-                player.speed = tiltAngle * 0.5;
+                player.speed = tiltAngle * 1.5;
             }
         }
 
