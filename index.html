@@ -320,8 +320,10 @@
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(player.x - player.width / 2, player.y - player.height / 2, player.width, player.height);
 
+            // Draw HUD (Score, Streak, Speed)
             ctx.fillStyle = 'white';
             ctx.font = '20px Arial';
+            ctx.textAlign = 'left';  // Ensure text is left-aligned
             ctx.fillText(`Score: ${score}`, 10, 30);
             ctx.fillText(`Streak: ${streak}`, 10, 60);
             ctx.fillText(`Speed: ${speed.toFixed(1)}x`, 10, 90);
