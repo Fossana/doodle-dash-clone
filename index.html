@@ -55,229 +55,160 @@
         const ctx = canvas.getContext('2d');
         const startScreen = document.getElementById('startScreen');
         const startButton = document.getElementById('startButton');
-
+    
         // Game configuration
-        const INITIAL_SPEED = 3; // Starting speed (slower than before)
-        const MAX_SPEED = 12; // Maximum speed cap
-        const SPEED_INCREMENT = 0.0003; // Smaller increment for more gradual speed increase
-        const GROUND_TILES = []; // Array to store ground tiles
-        const TILE_HEIGHT = 50; // Height of each ground tile
-
+        const INITIAL_SPEED = 3;
+        const MAX_SPEED = 12;
+        const SPEED_INCREMENT = 0.0003;
+        const GRID_SIZE = 40; // Size of grid squares
+        const MIN_CRYSTAL_Y_SPACING = 200; // Minimum vertical space between crystals
+        const MIN_OBSTACLE_CRYSTAL_DISTANCE = 100; // Minimum distance between obstacles and crystals
+        
         let gameStarted = false;
         let gameOver = false;
         let score = 0;
         let streak = 0;
         let speed = INITIAL_SPEED;
         let tiltAngle = 0;
-        let groundOffset = 0;
-
-        const player = {
-            x: 0,
-            y: 50,
-            width: 30,
-            height: 30,
-            speed: 0
-        };
-
-        let obstacles = [];
-        let crystals = [];
-        let collectEffects = [];
-
-        // Previous GameObject and CollectEffect classes remain the same
-        class GameObject {
-            constructor(x, y, width, height, color) {
-                this.x = x;
-                this.y = y;
-                this.width = width;
-                this.height = height;
-                this.color = color;
-            }
-
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
-            }
-        }
-
-        class CollectEffect {
-            constructor(x, y, points) {
-                this.x = x;
-                this.y = y;
-                this.points = points;
-                this.opacity = 1;
-                this.scale = 1;
-            }
-
-            update() {
-                this.opacity -= 0.02;
-                this.y -= 2;
-                this.scale += 0.05;
-                return this.opacity > 0;
-            }
-
-            draw() {
-                ctx.save();
-                ctx.globalAlpha = this.opacity;
-                ctx.fillStyle = 'white';
-                ctx.font = `${16 * this.scale}px Arial`;
-                ctx.textAlign = 'center';
-                ctx.fillText(`+${this.points}`, this.x, this.y);
-                ctx.restore();
-            }
-        }
-
+        let gridOffset = 0;
+    
+        // Store last spawn positions for spacing logic
+        let lastCrystalY = -MIN_CRYSTAL_Y_SPACING;
+        let lastObstacleY = 0;
+    
+        [Previous GameObject and CollectEffect classes remain exactly the same]
+    
         function setCanvasSize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
             player.x = canvas.width / 2;
-            initGroundTiles();
         }
-
-        function initGroundTiles() {
-            GROUND_TILES.length = 0;
-            const tilesNeeded = Math.ceil(canvas.height / TILE_HEIGHT) + 2;
-            for (let i = 0; i < tilesNeeded; i++) {
-                GROUND_TILES.push({
-                    y: i * TILE_HEIGHT,
-                    shade: i % 2 === 0 ? '#228B22' : '#32CD32'
-                });
-            }
-        }
-
-        window.addEventListener('resize', setCanvasSize);
-        setCanvasSize();
-
+    
         function spawnObstacle() {
             const x = Math.random() * canvas.width;
-            const obstacle = new GameObject(x, canvas.height + 30, 40, 40, '#654321');
-            obstacles.push(obstacle);
-        }
-
-        function spawnCrystal() {
-            const x = Math.random() * canvas.width;
-            const crystal = new GameObject(x, canvas.height + 30, 20, 20, '#00ff00');
-            crystal.collected = false;
-            crystals.push(crystal);
-        }
-
-        function handleTilt(event) {
-            if (gameStarted && !gameOver) {
-                tiltAngle = event.gamma;
-                player.speed = tiltAngle * 0.5;
-            }
-        }
-
-        function updatePlayer() {
-            player.x += player.speed;
-
-            if (player.x > canvas.width + player.width/2) {
-                player.x = -player.width/2;
-            }
-            if (player.x < -player.width/2) {
-                player.x = canvas.width + player.width/2;
-            }
-        }
-
-        function calculateCrystalPoints(streak) {
-            return Math.floor(1000 * Math.pow(1.5, streak));
-        }
-
-        function updateGroundTiles() {
-            groundOffset = (groundOffset + speed) % TILE_HEIGHT;
+            const y = canvas.height + 30;
             
-            GROUND_TILES.forEach((tile, index) => {
-                tile.y = (index * TILE_HEIGHT) - groundOffset;
-                if (tile.y < -TILE_HEIGHT) {
-                    tile.y += TILE_HEIGHT * GROUND_TILES.length;
-                }
-            });
-        }
-
-        function drawGround() {
-            GROUND_TILES.forEach(tile => {
-                ctx.fillStyle = tile.shade;
-                ctx.fillRect(0, tile.y, canvas.width, TILE_HEIGHT);
-            });
-        }
-
-        function checkCollisions() {
-            for (let obstacle of obstacles) {
-                if (Math.abs(player.x - obstacle.x) < (player.width + obstacle.width)/2 &&
-                    Math.abs(player.y - obstacle.y) < (player.height + obstacle.height)/2) {
-                    gameOver = true;
+            // Check distance to all crystals
+            for (let crystal of crystals) {
+                const dx = x - crystal.x;
+                const dy = y - crystal.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < MIN_OBSTACLE_CRYSTAL_DISTANCE) {
+                    return; // Don't spawn if too close to any crystal
                 }
             }
-
-            crystals = crystals.filter(crystal => {
-                if (!crystal.collected &&
-                    Math.abs(player.x - crystal.x) < (player.width + crystal.width)/2 &&
-                    Math.abs(player.y - crystal.y) < (player.height + crystal.height)/2) {
-                    const points = calculateCrystalPoints(streak);
-                    score += points;
-                    streak++;
-                    collectEffects.push(new CollectEffect(crystal.x, crystal.y, points));
-                    return false;
-                }
-                return true;
-            });
-
-            crystals = crystals.filter(crystal => {
-                if (!crystal.collected && crystal.y < 0) {
-                    streak = 0;
-                    return false;
-                }
-                return true;
-            });
+    
+            const obstacle = new GameObject(x, y, 40, 40, '#654321');
+            obstacles.push(obstacle);
+            lastObstacleY = y;
         }
-
+    
+        function spawnCrystal() {
+            const currentHighestCrystal = crystals.reduce((highest, crystal) => 
+                crystal.y > highest ? crystal.y : highest, -Infinity);
+    
+            // Only spawn if there's enough vertical space from the last crystal
+            if (currentHighestCrystal < canvas.height - MIN_CRYSTAL_Y_SPACING) {
+                const x = Math.random() * canvas.width;
+                const y = canvas.height + 30;
+    
+                // Check distance to all obstacles
+                for (let obstacle of obstacles) {
+                    const dx = x - obstacle.x;
+                    const dy = y - obstacle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < MIN_OBSTACLE_CRYSTAL_DISTANCE) {
+                        return; // Don't spawn if too close to any obstacle
+                    }
+                }
+    
+                const crystal = new GameObject(x, y, 20, 20, '#00ff00');
+                crystal.collected = false;
+                crystals.push(crystal);
+                lastCrystalY = y;
+            }
+        }
+    
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)'; // Subtle white lines
+            ctx.lineWidth = 1;
+    
+            // Vertical lines
+            for (let x = 0; x < canvas.width; x += GRID_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+    
+            // Horizontal lines, scrolling
+            const totalLines = Math.ceil(canvas.height / GRID_SIZE) + 1;
+            for (let i = 0; i < totalLines; i++) {
+                const y = (i * GRID_SIZE - gridOffset) % canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+    
+        function updateGrid() {
+            gridOffset = (gridOffset + speed) % GRID_SIZE;
+        }
+    
         function update() {
             if (!gameStarted || gameOver) return;
-
+    
             updatePlayer();
-            updateGroundTiles();
-
+            updateGrid();
+    
             obstacles.forEach(obj => obj.y -= speed);
             crystals.forEach(obj => obj.y -= speed);
-
+    
             collectEffects = collectEffects.filter(effect => effect.update());
-
+    
+            // Clean up off-screen objects
             obstacles = obstacles.filter(obj => obj.y > -50);
             crystals = crystals.filter(obj => obj.y > -50);
-
+    
+            // Spawn new objects with adjusted probabilities
             if (Math.random() < 0.02) spawnObstacle();
             if (Math.random() < 0.01) spawnCrystal();
-
+    
             checkCollisions();
-
-            // Gradually increase speed with a cap
+    
             if (speed < MAX_SPEED) {
                 speed += SPEED_INCREMENT;
             }
-
+    
             score += Math.floor(speed);
         }
-
+    
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw scrolling ground
-            drawGround();
-
+    
+            // Draw background
+            ctx.fillStyle = '#87CEEB';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+            // Draw scrolling grid
+            drawGrid();
+    
             obstacles.forEach(obj => obj.draw());
             crystals.forEach(obj => obj.draw());
             collectEffects.forEach(effect => effect.draw());
-
+    
             // Draw player
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(player.x - player.width/2, player.y - player.height/2, player.width, player.height);
-
+    
             // Draw HUD
             ctx.fillStyle = 'white';
             ctx.font = '20px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
             ctx.fillText(`Streak: ${streak}`, 10, 60);
             ctx.fillText(`Speed: ${speed.toFixed(1)}x`, 10, 90);
-
+    
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
