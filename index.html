@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Endless Runner</title>
     <style>
+        /* Previous styles remain the same */
         body {
             margin: 0;
             padding: 0;
@@ -55,12 +56,20 @@
         const startScreen = document.getElementById('startScreen');
         const startButton = document.getElementById('startButton');
 
+        // Game configuration
+        const INITIAL_SPEED = 3; // Starting speed (slower than before)
+        const MAX_SPEED = 12; // Maximum speed cap
+        const SPEED_INCREMENT = 0.0003; // Smaller increment for more gradual speed increase
+        const GROUND_TILES = []; // Array to store ground tiles
+        const TILE_HEIGHT = 50; // Height of each ground tile
+
         let gameStarted = false;
         let gameOver = false;
         let score = 0;
         let streak = 0;
-        let speed = 5;
+        let speed = INITIAL_SPEED;
         let tiltAngle = 0;
+        let groundOffset = 0;
 
         const player = {
             x: 0,
@@ -72,16 +81,9 @@
 
         let obstacles = [];
         let crystals = [];
-        
-        function setCanvasSize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            player.x = canvas.width / 2;
-        }
+        let collectEffects = [];
 
-        window.addEventListener('resize', setCanvasSize);
-        setCanvasSize();
-
+        // Previous GameObject and CollectEffect classes remain the same
         class GameObject {
             constructor(x, y, width, height, color) {
                 this.x = x;
@@ -96,6 +98,54 @@
                 ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
             }
         }
+
+        class CollectEffect {
+            constructor(x, y, points) {
+                this.x = x;
+                this.y = y;
+                this.points = points;
+                this.opacity = 1;
+                this.scale = 1;
+            }
+
+            update() {
+                this.opacity -= 0.02;
+                this.y -= 2;
+                this.scale += 0.05;
+                return this.opacity > 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = 'white';
+                ctx.font = `${16 * this.scale}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.fillText(`+${this.points}`, this.x, this.y);
+                ctx.restore();
+            }
+        }
+
+        function setCanvasSize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.x = canvas.width / 2;
+            initGroundTiles();
+        }
+
+        function initGroundTiles() {
+            GROUND_TILES.length = 0;
+            const tilesNeeded = Math.ceil(canvas.height / TILE_HEIGHT) + 2;
+            for (let i = 0; i < tilesNeeded; i++) {
+                GROUND_TILES.push({
+                    y: i * TILE_HEIGHT,
+                    shade: i % 2 === 0 ? '#228B22' : '#32CD32'
+                });
+            }
+        }
+
+        window.addEventListener('resize', setCanvasSize);
+        setCanvasSize();
 
         function spawnObstacle() {
             const x = Math.random() * canvas.width;
@@ -112,7 +162,7 @@
 
         function handleTilt(event) {
             if (gameStarted && !gameOver) {
-                tiltAngle = event.gamma; // Left/Right tilt
+                tiltAngle = event.gamma;
                 player.speed = tiltAngle * 0.5;
             }
         }
@@ -120,7 +170,6 @@
         function updatePlayer() {
             player.x += player.speed;
 
-            // Screen wrapping
             if (player.x > canvas.width + player.width/2) {
                 player.x = -player.width/2;
             }
@@ -129,8 +178,29 @@
             }
         }
 
+        function calculateCrystalPoints(streak) {
+            return Math.floor(1000 * Math.pow(1.5, streak));
+        }
+
+        function updateGroundTiles() {
+            groundOffset = (groundOffset + speed) % TILE_HEIGHT;
+            
+            GROUND_TILES.forEach((tile, index) => {
+                tile.y = (index * TILE_HEIGHT) - groundOffset;
+                if (tile.y < -TILE_HEIGHT) {
+                    tile.y += TILE_HEIGHT * GROUND_TILES.length;
+                }
+            });
+        }
+
+        function drawGround() {
+            GROUND_TILES.forEach(tile => {
+                ctx.fillStyle = tile.shade;
+                ctx.fillRect(0, tile.y, canvas.width, TILE_HEIGHT);
+            });
+        }
+
         function checkCollisions() {
-            // Check obstacle collisions
             for (let obstacle of obstacles) {
                 if (Math.abs(player.x - obstacle.x) < (player.width + obstacle.width)/2 &&
                     Math.abs(player.y - obstacle.y) < (player.height + obstacle.height)/2) {
@@ -138,18 +208,19 @@
                 }
             }
 
-            // Check crystal collisions
-            for (let crystal of crystals) {
+            crystals = crystals.filter(crystal => {
                 if (!crystal.collected &&
                     Math.abs(player.x - crystal.x) < (player.width + crystal.width)/2 &&
                     Math.abs(player.y - crystal.y) < (player.height + crystal.height)/2) {
-                    crystal.collected = true;
+                    const points = calculateCrystalPoints(streak);
+                    score += points;
                     streak++;
-                    score += streak * 100;
+                    collectEffects.push(new CollectEffect(crystal.x, crystal.y, points));
+                    return false;
                 }
-            }
+                return true;
+            });
 
-            // Check if missed any crystals
             crystals = crystals.filter(crystal => {
                 if (!crystal.collected && crystal.y < 0) {
                     streak = 0;
@@ -163,38 +234,38 @@
             if (!gameStarted || gameOver) return;
 
             updatePlayer();
+            updateGroundTiles();
 
-            // Move obstacles and crystals
             obstacles.forEach(obj => obj.y -= speed);
             crystals.forEach(obj => obj.y -= speed);
 
-            // Remove off-screen objects
+            collectEffects = collectEffects.filter(effect => effect.update());
+
             obstacles = obstacles.filter(obj => obj.y > -50);
             crystals = crystals.filter(obj => obj.y > -50);
 
-            // Spawn new objects
             if (Math.random() < 0.02) spawnObstacle();
             if (Math.random() < 0.01) spawnCrystal();
 
             checkCollisions();
 
-            // Increase speed over time
-            speed += 0.001;
+            // Gradually increase speed with a cap
+            if (speed < MAX_SPEED) {
+                speed += SPEED_INCREMENT;
+            }
 
-            // Update score based on survival
             score += Math.floor(speed);
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw background
-            ctx.fillStyle = '#87CEEB';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Draw scrolling ground
+            drawGround();
 
-            // Draw game objects
             obstacles.forEach(obj => obj.draw());
             crystals.forEach(obj => obj.draw());
+            collectEffects.forEach(effect => effect.draw());
 
             // Draw player
             ctx.fillStyle = '#ff0000';
@@ -205,6 +276,7 @@
             ctx.font = '20px Arial';
             ctx.fillText(`Score: ${score}`, 10, 30);
             ctx.fillText(`Streak: ${streak}`, 10, 60);
+            ctx.fillText(`Speed: ${speed.toFixed(1)}x`, 10, 90);
 
             if (gameOver) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -251,9 +323,11 @@
             gameOver = false;
             score = 0;
             streak = 0;
-            speed = 5;
+            speed = INITIAL_SPEED;
             obstacles = [];
             crystals = [];
+            collectEffects = [];
+            groundOffset = 0;
             player.x = canvas.width / 2;
             startScreen.style.display = 'none';
         }
