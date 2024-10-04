@@ -32,6 +32,8 @@
             align-items: center;
             justify-content: center;
             gap: 20px;
+            z-index: 10;  /* Ensure the start screen is above the canvas */
+            visibility: visible;  /* Ensure the start screen is visible */
         }
         button {
             padding: 10px 20px;
@@ -139,11 +141,8 @@
         function setCanvasSize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-        
-            // Ensuring the player's position is reset to the middle of the screen
             player.x = canvas.width / 2;
         
-            // Reset any potential horizontal scrolling issues
             document.body.style.margin = 0;
             document.body.style.padding = 0;
             document.body.style.overflow = 'hidden';
@@ -151,9 +150,11 @@
             canvas.style.left = '0px';
             canvas.style.top = '0px';
         
-            // Ensure the start screen is centered correctly
+            // Make sure the start screen is visible and centered
             startScreen.style.width = `${canvas.width}px`;
             startScreen.style.height = `${canvas.height}px`;
+            startScreen.style.display = 'flex';  // Ensure it's displayed
+            startScreen.style.visibility = 'visible';  // Ensure visibility
         }
 
         // Modified function to spawn obstacles with different sizes and shapes
@@ -383,6 +384,8 @@
             collectEffects = [];
             gridOffset = 0;
             player.x = canvas.width / 2;
+        
+            // Hide the start screen only when the game starts
             startScreen.style.display = 'none';
         }
 
