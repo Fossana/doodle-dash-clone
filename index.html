@@ -141,20 +141,23 @@
         function setCanvasSize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+        
+            // Ensuring the player's position is reset to the middle of the screen
             player.x = canvas.width / 2;
         
+            // Reset any potential horizontal scrolling issues
             document.body.style.margin = 0;
             document.body.style.padding = 0;
             document.body.style.overflow = 'hidden';
             canvas.style.position = 'absolute';
-            canvas.style.left = '0px';
+            canvas.style.left = '0px';  // Fixing potential left shift
             canvas.style.top = '0px';
         
-            // Make sure the start screen is visible and centered
+            // Make sure the start screen is properly centered
             startScreen.style.width = `${canvas.width}px`;
             startScreen.style.height = `${canvas.height}px`;
-            startScreen.style.display = 'flex';  // Ensure it's displayed
-            startScreen.style.visibility = 'visible';  // Ensure visibility
+            startScreen.style.display = 'flex';  // Ensure it's displayed on restart
+            startScreen.style.visibility = 'visible';  // Ensure it's visible
         }
 
         // Modified function to spawn obstacles with different sizes and shapes
@@ -375,7 +378,7 @@
 
         function initGame() {
             gameStarted = true;
-            gameOver = false;
+            gameOver = false;  // Reset the game over state properly
             score = 0;
             streak = 0;
             speed = INITIAL_SPEED;
@@ -385,14 +388,21 @@
             gridOffset = 0;
             player.x = canvas.width / 2;
         
-            // Hide the start screen only when the game starts
+            // Re-center the canvas and reset elements to avoid any shifts
+            canvas.style.left = '0px';  // Ensure no left shift on restart
+            canvas.style.top = '0px';
+        
+            // Hide the start screen when the game begins
             startScreen.style.display = 'none';
         }
 
         window.addEventListener('resize', setCanvasSize);
         startButton.addEventListener('click', startGame);
         canvas.addEventListener('click', () => {
-            if (gameOver) startGame();
+            if (gameOver) {
+                setCanvasSize();  // Reset canvas size when restarting the game
+                initGame();       // Restart the game
+            }
         });
 
         setCanvasSize();
